@@ -1,0 +1,378 @@
+<html>
+<head></head>
+<body>
+<canvas id="game" width="480" height="480"></canvas>
+<script type="text/javascript">
+function Game(canvas, blocks) {
+  var self = this;
+  var WIDTH = 10;
+  var HEIGHT = 18;
+  var map, current, next={};
+  var intervalId, action=null;
+
+  var context = canvas.getContext("2d")
+
+  var newBlock = function() {
+    current = next;
+    current.x = Math.floor(WIDTH/2) - 2;
+    current.y = 0;
+    current._y = 0;
+    next = {
+      type: Math.floor(Math.random() * blocks.length),
+      rotation: Math.floor(Math.random() * 4)
+    }
+  }
+
+  var count = 0;
+  var canDrop = false;
+  var step = function() {
+    count++;
+    if (count >= 40) {
+      count = 0;
+      if (!self.move(0, 1)) {
+        if (canDrop) {
+          self.drop();
+        } else {
+          canDrop = true;
+        }
+      }
+    }
+
+    if (action !== null) {
+      if(action === "rotate") {
+        self.rotate();
+      } else if (action == "left") {
+        self.move(-1, 0);
+      } else if (action == "right") {
+        self.move(1, 0);
+      } else if (action == "down") {
+        if (!self.move(0, 1)) {
+          self.drop();
+        }
+      }
+    }
+    action = null;
+    self.draw();
+  }
+
+  var testMove = function(x,y,rotation) {
+    var block = blocks[current.type][rotation];
+    for(var i=0;i<4;i++) {
+      for(var j=0;j<4;j++) {
+        if (y+j <= HEIGHT && y+j >= 0 && x+i >=0 && x+i <= WIDTH + 1) {
+          if (block[j * 4 + i] > 0 && map[y + j][x + i] > 0) {
+            return false;
+          }
+        }
+      }
+    }
+    return true;
+  }
+
+  self.move = function(deltaX, deltaY) {
+    if (testMove(current.x+deltaX, current.y+deltaY, current.rotation)) {
+      current.x += deltaX;
+      current.y += deltaY;
+      if (deltaY != 0) {
+        current._y = current.y;
+      }
+      return true;
+    }
+    return false;
+  }
+
+  self.rotate = function() {
+    var rotation = (current.rotation + 1) % 4;
+    var positions = [[0,0],[-1,0],[1,0],[-2,0],[-1,-1],[1,-1],[0,-2]];
+    for(var i in positions) {
+      if (testMove(positions[i][0] + current.x, positions[i][1] + current._y, rotation)) {
+        current.x = positions[i][0] + current.x;
+        current.y = positions[i][1] + current._y;
+        current.rotation = rotation;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  self.drop = function() {
+    var block = blocks[current.type][current.rotation];
+    for(var i=0;i<4;i++) {
+      for(var j=0;j<4;j++) {
+        if (current.y+j < HEIGHT && current.y+j >= 0 && current.x+i >=1 && current.x+i <= WIDTH) {
+          map[current.y + j][current.x + i] += block[j * 4 + i];
+        }
+      }
+    }
+
+    var delRows = [];
+    for(var j=current.y;j<HEIGHT; j++) {
+      var del = true;
+      for (var i=1;i<=WIDTH;i++) {
+        if(map[j][i] == 0) {
+          del = false;
+          break;
+        }
+      }
+      if (del) {
+        delRows.push(j);
+      }
+    }
+
+    for(var i in delRows) {
+      for(var y = delRows[i];y>0;y--){
+        map[y] = map[y-1];
+      }
+      map[0] = map[0].slice();
+      for (var j=1;j<=WIDTH;j++) {
+        map[0][j] = 0;
+      }
+    }
+
+    newBlock();
+    if(!testMove(current.x, current.y, current.rotation)) {
+      clearInterval(intervalId);
+    }
+  }
+
+  self.reset = function() {
+    map = [];
+    for(var i=0;i<HEIGHT;i++) {
+      var row = [];
+      row.push(1);
+      for (var j=0;j<WIDTH;j++) {
+        row.push(0);
+      }
+      row.push(1);
+      map.push(row);
+    }
+    var row = [];
+    for (var j=0;j<WIDTH+2;j++) {
+      row.push(1);
+    }
+    map.push(row);
+
+    newBlock();
+    newBlock();
+
+    intervalId = setInterval(step, 20);
+  }
+
+  self.setAction = function(a) {
+    action = a;
+    canDrop = false;
+  }
+
+  self.draw = function() {
+    context.fillStyle = '#808080';
+    context.fillRect(0,0,24*(WIDTH+5),24*HEIGHT);
+    context.strokeStyle = '#000000';
+    context.strokeRect(0,0,24*WIDTH,24*HEIGHT)
+    context.strokeRect(252,24,24*4,24*4)
+
+    context.fillStyle = '#000000';
+    for(var y = 0;y < HEIGHT; y++) {
+      for(var x = 1; x<=WIDTH; x++) {
+        if(map[y][x] > 0) {
+          context.fillRect((x-1)*24+1,y*24+1,22,22);
+        }
+      }
+    }
+
+    var block = blocks[current.type][current.rotation];
+    for(var i=0;i<4;i++) {
+      for(var j=0;j<4;j++) {
+        if (block[j*4+i] > 0) {
+          context.fillRect((current.x-1+i)*24+1,(current.y+j)*24+1,22,22);
+        }
+      }
+    }
+
+    block = blocks[next.type][next.rotation];
+    for(var i=0;i<4;i++) {
+      for(var j=0;j<4;j++) {
+        if (block[j*4+i] > 0) {
+          context.fillRect(252+i*24+1,24+j*24+1,22,22);
+        }
+      }
+    }
+  }
+}
+
+var blocks = [
+[[
+0,0,0,0,
+1,1,1,1,
+0,0,0,0,
+0,0,0,0
+], [
+0,1,0,0,
+0,1,0,0,
+0,1,0,0,
+0,1,0,0
+],[
+0,0,0,0,
+1,1,1,1,
+0,0,0,0,
+0,0,0,0
+], [
+0,1,0,0,
+0,1,0,0,
+0,1,0,0,
+0,1,0,0
+]],
+
+[[
+0,1,0,0,
+1,1,1,0,
+0,0,0,0,
+0,0,0,0
+], [
+0,1,0,0,
+0,1,1,0,
+0,1,0,0,
+0,0,0,0
+],[
+0,0,0,0,
+1,1,1,0,
+0,1,0,0,
+0,0,0,0
+], [
+0,1,0,0,
+1,1,0,0,
+0,1,0,0,
+0,0,0,0
+]],
+
+[[
+0,0,0,0,
+0,1,1,0,
+0,0,1,1,
+0,0,0,0
+], [
+0,0,1,0,
+0,1,1,0,
+0,1,0,0,
+0,0,0,0
+],[
+0,0,0,0,
+0,1,1,0,
+0,0,1,1,
+0,0,0,0
+], [
+0,0,1,0,
+0,1,1,0,
+0,1,0,0,
+0,0,0,0
+]],
+
+[[
+0,0,0,0,
+0,1,1,0,
+1,1,0,0,
+0,0,0,0
+], [
+0,1,0,0,
+0,1,1,0,
+0,0,1,0,
+0,0,0,0
+],[
+0,0,0,0,
+0,1,1,0,
+1,1,0,0,
+0,0,0,0
+], [
+0,1,0,0,
+0,1,1,0,
+0,0,1,0,
+0,0,0,0
+]],
+
+[[
+0,0,0,0,
+0,1,1,0,
+0,1,1,0,
+0,0,0,0
+], [
+0,0,0,0,
+0,1,1,0,
+0,1,1,0,
+0,0,0,0
+],[
+0,0,0,0,
+0,1,1,0,
+0,1,1,0,
+0,0,0,0
+], [
+0,0,0,0,
+0,1,1,0,
+0,1,1,0,
+0,0,0,0
+]],
+
+[[
+0,1,0,0,
+0,1,0,0,
+0,1,1,0,
+0,0,0,0
+], [
+0,0,0,0,
+0,1,1,1,
+0,1,0,0,
+0,0,0,0
+],[
+0,0,0,0,
+0,1,1,0,
+0,0,1,0,
+0,0,1,0
+], [
+0,0,0,0,
+0,0,1,0,
+1,1,1,0,
+0,0,0,0
+]],
+
+[[
+0,0,1,0,
+0,0,1,0,
+0,1,1,0,
+0,0,0,0
+], [
+0,0,0,0,
+0,1,0,0,
+0,1,1,1,
+0,0,0,0
+],[
+0,0,0,0,
+0,1,1,0,
+0,1,0,0,
+0,1,0,0
+], [
+0,0,0,0,
+1,1,1,0,
+0,0,1,0,
+0,0,0,0
+]],
+];
+
+var game = new Game(document.getElementById("game"), blocks);
+window.onkeypress = function(event) {
+  switch (event.keyCode) {
+    case 115: //s
+      game.setAction("down");
+      break;
+    case 97: //a
+      game.setAction("left");
+      break;
+    case 100: //d
+      game.setAction("right");
+      break;
+    case 108: //l
+      game.setAction("rotate");
+      break;
+  }
+}
+game.reset();
+</script>
+</body>
+</html>
